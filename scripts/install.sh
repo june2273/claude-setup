@@ -39,4 +39,4 @@ IGN="${IGN/#\~/$HOME}"
 if grep -q '^\.dev\.vars$' "$IGN" 2>/dev/null; then echo "   이미 있음, 건너뜀"
 else cat "$ROOT/hooks/gitignore_global" >> "$IGN" && git config --global core.excludesfile "$IGN"; fi
 
-echo "완료. CLAUDE.md는 덮어쓰지 않습니다: 필요한 절만 ~/.claude/CLAUDE.md에 복사하세요."
+echo "완료. global/CLAUDE.md는 덮어쓰지 않습니다: 필요한 절만 ~/.claude/CLAUDE.md에 복사하세요."

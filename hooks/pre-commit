@@ -1,13 +1,13 @@
 #!/bin/bash
 # 전역 pre-commit 훅 (git config --global core.hooksPath ~/.git-hooks)
 # 스테이징된 변경에 비밀값 파일·키·토큰이 있으면 커밋을 막는다. 값은 출력하지 않는다.
-# 정말 의도한 경우만: SKIP_SECRET_CHECK=1 git commit ...  (레포 자체 훅은 그대로 이어서 돈다)
+# 정말 의도한 경우만 사용자가 직접: SKIP_SECRET_CHECK=1 git commit ...  (Claude Code는 가드 훅이 막는다)
 
 if [ "$SKIP_SECRET_CHECK" != "1" ]; then
   fail=0
 
   # 1) 파일 이름
-  names=$(git diff --cached --name-only --diff-filter=ACMR | grep -E \
+  names=$(git diff ${SECRET_DIFF:---cached} --name-only --diff-filter=ACMR | grep -E \
     '(^|/)\.env($|\.)|(^|/)\.dev\.vars|(^|/)\.wrangler/|\.pem$|\.p12$|\.pfx$|(^|/)id_(rsa|ed25519)|(^|/)credentials\.json$|service-account.*\.json$' \
     | grep -vE '(^|/)\.env\.(example|sample)$')
   if [ -n "$names" ]; then
@@ -18,7 +18,7 @@ if [ "$SKIP_SECRET_CHECK" != "1" ]; then
   # 2) 추가된 줄의 키·토큰 패턴 (값은 가려서 보여준다)
   KEY='sk-ant-[A-Za-z0-9_-]{10,}|sk-(proj-)?[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|hf_[A-Za-z0-9]{30,}|ntn_[A-Za-z0-9]{20,}|secret_[A-Za-z0-9]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|discord(app)?\.com/api/webhooks/[0-9]+|hooks\.slack\.com/services/'
   ASSIGN='(api[_-]?key|secret|token|passw(or)?d)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"'[:space:]<>$]{12,}["'"'"']'
-  hits=$(git diff --cached -U0 --diff-filter=ACMR | awk '
+  hits=$(git diff ${SECRET_DIFF:---cached} -U0 --diff-filter=ACMR | awk '
     /^\+\+\+ b\// { f = substr($0, 7); next }
     /^\+/ && !/^\+\+\+/ { print f ":" substr($0, 2) }' \
     | grep -iE "$KEY|$ASSIGN" \
@@ -32,11 +32,12 @@ if [ "$SKIP_SECRET_CHECK" != "1" ]; then
   fi
 
   if [ "$fail" = 1 ]; then
-    echo "   잘못 걸린 것이면: SKIP_SECRET_CHECK=1 git commit ..."
+    echo "   잘못 걸린 것이면 사용자가 터미널에서 직접: SKIP_SECRET_CHECK=1 git commit ..."
     exit 1
   fi
 fi
 
+[ "$SECRET_CHECK_ONLY" = 1 ] && exit 0  # Claude Code 가드가 검사만 부를 때
 # 레포 자체의 pre-commit 훅이 있으면 이어서 실행한다 (core.hooksPath가 그것을 가리므로)
 local_hook="$(git rev-parse --git-dir)/hooks/pre-commit"
 if [ -x "$local_hook" ]; then
