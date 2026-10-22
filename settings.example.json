@@ -1,0 +1,15 @@
+{
+  "enabledPlugins": {
+    "oh-my-fable@oh-my-fable": true,
+    "caveman@caveman": true,
+    "ponytail@ponytail": true,
+    "andrej-karpathy-skills@karpathy-skills": true
+  },
+  "extraKnownMarketplaces": {
+    "oh-my-fable": { "source": { "source": "github", "repo": "Junhan2/oh-my-fable" } },
+    "caveman": { "source": { "source": "github", "repo": "JuliusBrussee/caveman" } },
+    "ponytail": { "source": { "source": "github", "repo": "DietrichGebert/ponytail" } },
+    "karpathy-skills": { "source": { "source": "github", "repo": "forrestchang/andrej-karpathy-skills" } }
+  },
+  "language": "korean"
+}

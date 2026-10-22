@@ -1,0 +1,45 @@
+#!/bin/bash
+# 전역 pre-commit 훅 (git config --global core.hooksPath ~/.git-hooks)
+# 스테이징된 변경에 비밀값 파일·키·토큰이 있으면 커밋을 막는다. 값은 출력하지 않는다.
+# 정말 의도한 경우만: SKIP_SECRET_CHECK=1 git commit ...  (레포 자체 훅은 그대로 이어서 돈다)
+
+if [ "$SKIP_SECRET_CHECK" != "1" ]; then
+  fail=0
+
+  # 1) 파일 이름
+  names=$(git diff --cached --name-only --diff-filter=ACMR | grep -E \
+    '(^|/)\.env($|\.)|(^|/)\.dev\.vars|(^|/)\.wrangler/|\.pem$|\.p12$|\.pfx$|(^|/)id_(rsa|ed25519)|(^|/)credentials\.json$|service-account.*\.json$' \
+    | grep -vE '(^|/)\.env\.(example|sample)$')
+  if [ -n "$names" ]; then
+    echo "✋ 비밀값 파일은 커밋할 수 없습니다:"; echo "$names" | sed 's/^/   /'
+    fail=1
+  fi
+
+  # 2) 추가된 줄의 키·토큰 패턴 (값은 가려서 보여준다)
+  KEY='sk-ant-[A-Za-z0-9_-]{10,}|sk-(proj-)?[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|gh[pousr]_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|hf_[A-Za-z0-9]{30,}|ntn_[A-Za-z0-9]{20,}|secret_[A-Za-z0-9]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|discord(app)?\.com/api/webhooks/[0-9]+|hooks\.slack\.com/services/'
+  ASSIGN='(api[_-]?key|secret|token|passw(or)?d)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"'][^"'"'"'[:space:]<>$]{12,}["'"'"']'
+  hits=$(git diff --cached -U0 --diff-filter=ACMR | awk '
+    /^\+\+\+ b\// { f = substr($0, 7); next }
+    /^\+/ && !/^\+\+\+/ { print f ":" substr($0, 2) }' \
+    | grep -iE "$KEY|$ASSIGN" \
+    | grep -viE 'getenv|environ|process\.env|example|placeholder|your[_-]|xxxx|<[^>]+>' \
+    | sed -E 's/(sk-ant-|sk-|AKIA|AIza|gh[pousr]_|github_pat_|xox[abprs]-|hf_|ntn_|secret_)[A-Za-z0-9_-]+/\1****/g; s/([:=][[:space:]]*["'"'"'])[^"'"'"']+/\1****/g' \
+    | cut -c1-160)
+  if [ -n "$hits" ]; then
+    echo "✋ 키·토큰으로 보이는 값이 있습니다 (.env로 옮기고 코드는 환경변수로 읽으세요):"
+    echo "$hits" | sed 's/^/   /'
+    fail=1
+  fi
+
+  if [ "$fail" = 1 ]; then
+    echo "   잘못 걸린 것이면: SKIP_SECRET_CHECK=1 git commit ..."
+    exit 1
+  fi
+fi
+
+# 레포 자체의 pre-commit 훅이 있으면 이어서 실행한다 (core.hooksPath가 그것을 가리므로)
+local_hook="$(git rev-parse --git-dir)/hooks/pre-commit"
+if [ -x "$local_hook" ]; then
+  exec "$local_hook" "$@"
+fi
+exit 0
